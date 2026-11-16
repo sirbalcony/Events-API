@@ -1,0 +1,29 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# Git
+.git/
+.gitignore
+
+# Local configuration
+.env
+.vscode/
+.idea/
+
+# Test files
+tests/
+requirements-dev.txt
