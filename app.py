@@ -74,8 +74,8 @@ def create_app():
                 }
             }
         }), 200
-    
-    # Health check endpoint
+
+    # Health endpoint for Docker and deployment checks
     @app.route('/api/health', methods=['GET'])
     def health():
         return jsonify({'status': 'healthy'}), 200
@@ -85,4 +85,3 @@ def create_app():
 if __name__ == '__main__':
     app = create_app()
     app.run(host='0.0.0.0', port=5000)
-

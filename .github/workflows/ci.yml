@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -55,3 +55,65 @@ jobs:
         run: |
           docker stop events-api-ci || true
           docker rm events-api-ci || true
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/events-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/events-api:${{ github.sha }}
+
+      - name: Trigger Render deployment
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          curl --fail --silent --show-error --get \
+            --data-urlencode "imgURL=docker.io/${DOCKERHUB_USERNAME}/events-api:${GITHUB_SHA}" \
+            "$RENDER_DEPLOY_HOOK"
+
+      - name: Smoke test Render API
+        env:
+          RENDER_BASE_URL: ${{ secrets.RENDER_BASE_URL }}
+        run: |
+          echo "Waiting for Render deployment..."
+          sleep 30
+
+          for attempt in {1..30}; do
+            status=$(curl --silent --output /dev/null \
+              --write-out "%{http_code}" --max-time 15 \
+              "${RENDER_BASE_URL%/}/api/health" || true)
+
+            if [ "$status" = "200" ]; then
+              echo "Smoke test passed: HTTP 200"
+              exit 0
+            fi
+
+            echo "Render not ready (attempt $attempt/30, HTTP $status)"
+            sleep 10
+          done
+
+          echo "Smoke test failed"
+          exit 1
